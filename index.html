@@ -133,6 +133,7 @@ div.innerHTML=`
 <button onclick="lihat(${o.id},'anak_beru')">Anak Beru</button>
 <button onclick="lihat(${o.id},'sembuyak')">Sembuyak</button>
 </div>
+<button onclick="lihatTutur(${o.id})">TUTUR SIWALUH</button>
 <button onclick="bukaTambah(${o.id})">+ Tambah Relasi</button>
 `;
 hasil.appendChild(div);
@@ -204,6 +205,42 @@ relasiPage.classList.add('hidden');
 searchPage.classList.remove('hidden');
 }
 
+}
+
+window.lihatTutur = async function(id){
+searchPage.classList.add('hidden');
+relasiPage.classList.remove('hidden');
+
+const { data } = await supabase.rpc('get_tutur_siwaluh', {
+  p_orang: id
+});
+
+const relasiHasil = document.getElementById('relasiHasil');
+relasiHasil.innerHTML='';
+
+if(!data || data.length===0){
+  relasiHasil.innerHTML='<p>Tidak ada data</p>';
+  return;
+}
+
+// urut
+data.sort((a,b)=>a.tingkat - b.tingkat);
+
+for(let r of data){
+const { data:o } = await supabase
+.from('orang')
+.select('*')
+.eq('id', r.target_id)
+.single();
+
+if(!o) continue;
+
+relasiHasil.innerHTML += `
+<div class="card">
+<h3>${o.nama} (${o.marga})</h3>
+<p>${r.jenis} | tingkat ${r.tingkat}</p>
+</div>`;
+}
 }
 </script>
 
