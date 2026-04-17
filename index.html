@@ -55,8 +55,6 @@ img { width:100%; height:120px; object-fit:cover; border-radius:10px }
 <button id="btnTambahRelasi">SIMPAN RELASI</button>
 <button id="btnBatal">BATAL</button>
 </div>
-<footer style="text-align:center;padding:20px;color:var(--muted);font-size:15px"><p>🙏 Mejuah-juah | © 2026 Budaya Karo</p>
-<p style="font-size:13px">tinembok@gmail.com</p></footer></div>
 
 <script>
 window.onload = function(){
@@ -133,47 +131,26 @@ div.innerHTML=`
 <button onclick="lihat(${o.id},'anak_beru')">Anak Beru</button>
 <button onclick="lihat(${o.id},'sembuyak')">Sembuyak</button>
 </div>
-<button onclick="lihatTutur(${o.id})">TUTUR SIWALUH</button>
 <button onclick="bukaTambah(${o.id})">+ Tambah Relasi</button>
 `;
 hasil.appendChild(div);
 });
 }
 
-window.lihat = async function(id, jenis){
+window.lihat = async function(id,jenis){
 searchPage.classList.add('hidden');
 relasiPage.classList.remove('hidden');
 
-const { data } = await supabase.rpc('get_relasi_bertahap', {
-  p_orang: id,
-  p_jenis: jenis
-});
+const { data } = await supabase.from('relasi').select('target_id').eq('orang_id',id).eq('jenis',jenis);
 
 const relasiHasil = document.getElementById('relasiHasil');
 relasiHasil.innerHTML='';
 
-if(!data || data.length === 0){
-  relasiHasil.innerHTML = '<p>Tidak ada data</p>';
-  return;
-}
-
-// urut berdasarkan tingkat
-data.sort((a,b)=>a.tingkat - b.tingkat);
-
-for(let r of data){
-const { data:o } = await supabase
-  .from('orang')
-  .select('*')
-  .eq('id', r.target_id)
-  .single();
-
+for(let r of (data||[])){
+const { data:o } = await supabase.from('orang').select('*').eq('id',r.target_id).single();
 if(!o) continue;
 
-relasiHasil.innerHTML += `
-<div class="card">
-<h3>${o.nama} (${o.marga})</h3>
-<p>Tingkat: ${r.tingkat}</p>
-</div>`;
+relasiHasil.innerHTML += `<div class="card"><h3>${o.nama} (${o.marga})</h3></div>`;
 }
 }
 
@@ -206,42 +183,47 @@ searchPage.classList.remove('hidden');
 }
 
 }
+</script>
 
-window.lihatTutur = async function(id){
+<div class="container hidden" id="treePage">
+<h2>POHON KELUARGA</h2>
+<div id="tree"></div>
+<button onclick="back()">KEMBALI</button>
+</div>
+
+<script>
+
+window.lihatTree = async function(id){
 searchPage.classList.add('hidden');
-relasiPage.classList.remove('hidden');
+treePage.classList.remove('hidden');
 
-const { data } = await supabase.rpc('get_tutur_siwaluh', {
-  p_orang: id
+const { data } = await supabase.rpc('get_relasi_bertahap', {
+  p_orang: id,
+  p_jenis: 'kalimbubu'
 });
 
-const relasiHasil = document.getElementById('relasiHasil');
-relasiHasil.innerHTML='';
+const tree = document.getElementById('tree');
+tree.innerHTML='';
 
-if(!data || data.length===0){
-  relasiHasil.innerHTML='<p>Tidak ada data</p>';
-  return;
-}
-
-// urut
-data.sort((a,b)=>a.tingkat - b.tingkat);
+if(!data) return;
 
 for(let r of data){
-const { data:o } = await supabase
-.from('orang')
-.select('*')
-.eq('id', r.target_id)
-.single();
-
+const { data:o } = await supabase.from('orang').select('*').eq('id', r.target_id).single();
 if(!o) continue;
 
-relasiHasil.innerHTML += `
-<div class="card">
+const div=document.createElement('div');
+div.className='card';
+div.style.marginLeft = (r.tingkat * 20)+'px';
+
+div.innerHTML=`
 <h3>${o.nama} (${o.marga})</h3>
-<p>${r.jenis} | tingkat ${r.tingkat}</p>
-</div>`;
+<p>Tingkat ${r.tingkat}</p>`;
+
+
+tree.appendChild(div);
 }
 }
+
 </script>
 
 </body>
