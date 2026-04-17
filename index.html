@@ -139,20 +139,40 @@ hasil.appendChild(div);
 });
 }
 
-window.lihat = async function(id,jenis){
+window.lihat = async function(id, jenis){
 searchPage.classList.add('hidden');
 relasiPage.classList.remove('hidden');
 
-const { data } = await supabase.from('relasi').select('target_id').eq('orang_id',id).eq('jenis',jenis);
+const { data } = await supabase.rpc('get_relasi_bertahap', {
+  p_orang: id,
+  p_jenis: jenis
+});
 
 const relasiHasil = document.getElementById('relasiHasil');
 relasiHasil.innerHTML='';
 
-for(let r of (data||[])){
-const { data:o } = await supabase.from('orang').select('*').eq('id',r.target_id).single();
+if(!data || data.length === 0){
+  relasiHasil.innerHTML = '<p>Tidak ada data</p>';
+  return;
+}
+
+// urut berdasarkan tingkat
+data.sort((a,b)=>a.tingkat - b.tingkat);
+
+for(let r of data){
+const { data:o } = await supabase
+  .from('orang')
+  .select('*')
+  .eq('id', r.target_id)
+  .single();
+
 if(!o) continue;
 
-relasiHasil.innerHTML += `<div class="card"><h3>${o.nama} (${o.marga})</h3></div>`;
+relasiHasil.innerHTML += `
+<div class="card">
+<h3>${o.nama} (${o.marga})</h3>
+<p>Tingkat: ${r.tingkat}</p>
+</div>`;
 }
 }
 
