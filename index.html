@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TUTUR KARO</title>
+<script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+body { font-family: Arial; background:#111; color:#fff; margin:0 }
+.container { padding:16px }
+.card { background:#1e1e1e; padding:12px; margin:10px 0; border-radius:12px }
+input, button { padding:14px; margin:6px 0; width:100%; border-radius:10px; border:none; font-size:16px }
+button { background:#b71c1c; color:white }
+img { width:100%; height:150px; object-fit:cover; border-radius:10px }
+.hidden { display:none }
+.relasi button { margin:4px 0 }
+.small { font-size:12px; opacity:0.7 }
+</style>
+</head>
+<body>
+
+<div class="container" id="loginPage">
+<h2>TUTUR KARO</h2>
+<input type="password" id="password" placeholder="Password" />
+<button id="btnLogin">MASUK</button>
+</div>
+
+<div class="container hidden" id="registerPage">
+<h2>DATA DIRI</h2>
+<input id="nama" placeholder="Nama" />
+<input id="marga" placeholder="Marga" />
+<input type="file" id="foto" accept="image/*" />
+<button id="btnSimpan">SIMPAN</button>
+<p class="small">* Nama akan dinormalisasi otomatis (huruf kecil, tanpa spasi berlebih)</p>
+</div>
+
+<div class="container hidden" id="searchPage">
+<h2>PENCARIAN</h2>
+<input id="cari" placeholder="Cari nama" />
+<div id="hasil"></div>
+</div>
+
+<div class="container hidden" id="relasiPage">
+<h2>HASIL RELASI</h2>
+<div id="relasiHasil"></div>
+<button id="btnBack">KEMBALI</button>
+</div>
+<footer style="text-align:center;padding:20px;color:var(--muted);font-size:15px"><p>🙏 Mejuah-juah | © 2026 Budaya Karo</p>
+<p style="font-size:13px">tinembok@gmail.com</p></footer></div>
+
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+
+const supabase = window.supabase.createClient(
+'https://ucjcpyjuvwebkiyxgzel.supabase.co',
+'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjamNweWp1dndlYmtpeXhnemVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNTIzODEsImV4cCI6MjA5MTcyODM4MX0.cQeZJZAqWmGLReuarfYZ9kHOYQaK3ujnXVJHWpsIlrQ'
+);
+
+const loginPage = document.getElementById('loginPage');
+const registerPage = document.getElementById('registerPage');
+const searchPage = document.getElementById('searchPage');
+const relasiPage = document.getElementById('relasiPage');
+
+const nama = document.getElementById('nama');
+const marga = document.getElementById('marga');
+const foto = document.getElementById('foto');
+const hasil = document.getElementById('hasil');
+const relasiHasil = document.getElementById('relasiHasil');
+
+let currentUser = null;
+
+// EVENT LISTENER
+document.getElementById('btnLogin').onclick = login;
+document.getElementById('btnSimpan').onclick = simpan;
+document.getElementById('btnBack').onclick = back;
+document.getElementById('cari').oninput = cari;
+
+function normalize(text){
+return text.toLowerCase().trim().replace(/\s+/g,' ');
+}
+
+function login(){
+if(document.getElementById('password').value === 'mejuahjuah'){
+loginPage.classList.add('hidden');
+registerPage.classList.remove('hidden');
+cekUser();
+}else alert('Password salah');
+}
+
+// sementara: ambil 1 user pertama (global mode)
+async function cekUser(){
+const { data } = await supabase.from('orang').select('*').limit(1);
+if(data && data.length > 0){
+currentUser = data[0];
+nama.value = currentUser.nama;
+marga.value = currentUser.marga;
+}
+}
+
+async function compress(file){
+return new Promise(res=>{
+const img=new Image();
+const r=new FileReader();
+r.onload=e=>img.src=e.target.result;
+img.onload=()=>{
+const c=document.createElement('canvas');
+const ctx=c.getContext('2d');
+let w=img.width,h=img.height;
+const max=500;
+if(w>h){if(w>max){h*=max/w;w=max}}
+else{if(h>max){w*=max/h;h=max}}
+c.width=w;c.height=h;
+ctx.drawImage(img,0,0,w,h);
+c.toBlob(b=>res(b),'image/jpeg',0.7);
+};
+r.readAsDataURL(file);
+});
+}
+
+async function simpan(){
+let foto_url='';
+const file=foto.files[0];
+
+const namaFix = normalize(nama.value);
+const margaFix = normalize(marga.value);
+
+if(file){
+const blob=await compress(file);
+const name=Date.now()+'.jpg';
+await supabase.storage.from('foto').upload(name,blob);
+foto_url=supabase.storage.from('foto').getPublicUrl(name).data.publicUrl;
+}
+
+if(currentUser){
+await supabase.from('orang').update({nama:namaFix,marga:margaFix}).eq('id',currentUser.id);
+}else{
+await supabase.from('orang').insert([{nama:namaFix,marga:margaFix,foto_url}]);
+}
+
+registerPage.classList.add('hidden');
+searchPage.classList.remove('hidden');
+}
+
+async function cari(){
+const k=normalize(document.getElementById('cari').value);
+const { data } = await supabase.from('orang').select('*').ilike('nama',`%${k}%`);
+hasil.innerHTML='';
+
+if(!data) return;
+
+data.forEach(o=>{
+const div=document.createElement('div');
+div.className='card';
+div.innerHTML=`
+<img src="${o.foto_url||''}" onerror="this.style.display='none'"/>
+<h3>${o.nama} (${o.marga})</h3>
+<div class="relasi">
+<button data-id="${o.id}" data-jenis="kalimbubu">KALIMBUBU</button>
+<button data-id="${o.id}" data-jenis="anak_beru">ANAK BERU</button>
+<button data-id="${o.id}" data-jenis="sembuyak">SEMBUYAK</button>
+<button data-id="${o.id}" data-jenis="puang_kalimbubu">PUANG KALIMBUBU</button>
+<button data-id="${o.id}" data-jenis="senina">SENINA</button>
+<button data-id="${o.id}" data-jenis="senina_sipemeren">SIPEREMEN</button>
+<button data-id="${o.id}" data-jenis="senina_sipengalon">SIPENGALON</button>
+<button data-id="${o.id}" data-jenis="anak_beru_menteri">ANAK BERU MENTERI</button>
+</div>`;
+
+Array.from(div.querySelectorAll('button')).forEach(btn=>{
+btn.onclick=()=>lihatRelasi(btn.dataset.id, btn.dataset.jenis);
+});
+
+// tombol tambah relasi
+const btnTambah=document.createElement('button');
+btnTambah.innerText='+ TAMBAH RELASI';
+btnTambah.style.background='#2e7d32';
+btnTambah.onclick=()=>tambahRelasiUI(o.id);
+
+div.appendChild(btnTambah);
+
+hasil.appendChild(div);
+});
+}
+
+async function lihatRelasi(id,jenis){
+searchPage.classList.add('hidden');
+relasiPage.classList.remove('hidden');
+
+// ambil sekaligus data orang (hindari query berulang)
+const { data, error } = await supabase
+.from('relasi')
+.select('target_id,tingkat,target:orang!relasi_target_id_fkey(id,nama,marga,foto_url)')
+.eq('orang_id',id)
+.eq('jenis',jenis)
+.order('tingkat', { ascending: true });
+
+relasiHasil.innerHTML='';
+
+if(error){
+relasiHasil.innerHTML = '<p>Error load data</p>';
+return;
+}
+
+if(!data || data.length===0){
+relasiHasil.innerHTML='<p>Tidak ada data</p>';
+return;
+}
+
+// render (sudah tanpa duplikat + urut terdekat)
+data.forEach(r=>{
+const o = r.target;
+if(!o) return;
+
+const div=document.createElement('div');
+div.className='card';
+div.innerHTML=`
+<img src="${o.foto_url||''}" onerror="this.style.display='none'"/>
+<h3>${o.nama} (${o.marga})</h3>
+<p class="small">tingkat: ${r.tingkat}</p>`;
+
+relasiHasil.appendChild(div);
+});
+}
+
+// === TAMBAH RELASI UI ===
+let selectedId = null;
+
+window.tambahRelasiUI = function(id){
+selectedId = id;
+const target = prompt('Masukkan ID target (cek di database)');
+if(!target) return;
+
+const jenis = prompt('Jenis relasi:
+kalimbubu
+anak_beru
+sembuyak');
+if(!jenis) return;
+
+simpanRelasi(selectedId, target, jenis);
+}
+
+async function simpanRelasi(id,target,jenis){
+try{
+await supabase.rpc('tambah_relasi',{
+  p_orang: parseInt(id),
+  p_target: parseInt(target),
+  p_jenis: jenis
+});
+alert('Relasi berhasil ditambahkan');
+}catch(e){
+alert('Gagal tambah relasi');
+console.error(e);
+}
+}
+
+function back(){
+relasiPage.classList.add('hidden');
+searchPage.classList.remove('hidden');
+}
+
+});
+</script>
+
+</body>
+</html>
